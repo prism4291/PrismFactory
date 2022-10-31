@@ -342,3 +342,7 @@ void Main()
 
 	}
 }
+
+//git add .
+//git commit -m com
+//git push -u origin main
