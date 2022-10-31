@@ -2,20 +2,32 @@
 # include "Multiplayer_Photon.hpp"
 # include "PHOTON_APP_ID.SECRET"
 
-// ユーザ定義型
-struct MyData
-{
-	String word;
-
+struct SinglePixel {
 	Point pos;
+	Color color;
+};
+
+struct PixelData {
+	int32 size = 8;
+	int32 width = 320;
+	int32 height = 180;
+	Grid<SinglePixel> data;
+};
+
+// ユーザ定義型
+struct PixelSerialize
+{
+	SinglePixel pixel;
 
 	// シリアライズに対応させるためのメンバ関数を定義する
 	template <class Archive>
 	void SIV3D_SERIALIZE(Archive& archive)
 	{
-		archive(word, pos);
+		archive(pixel);
 	}
 };
+
+
 
 class MyNetwork : public Multiplayer_Photon
 {
@@ -198,7 +210,7 @@ private:
 			return;
 		}
 	}
-
+	/*
 	void customEventAction(const LocalPlayerID playerID, const uint8 eventCode, const int32 data) override
 	{
 		Print << U"<<< [" << playerID << U"] からの eventCode: " << eventCode << U", data: int32(" << data << U") を受信";
@@ -223,15 +235,16 @@ private:
 	{
 		Print << U"<<< [" << playerID << U"] からの eventCode: " << eventCode << U", data: Array<String>" << data << U" を受信";
 	}
-
+	*/
 	// シリアライズデータを受信したときに呼ばれる関数をオーバーライドしてカスタマイズする
 	void customEventAction(const LocalPlayerID playerID, const uint8 eventCode, Deserializer<MemoryViewReader>& reader) override
 	{
 		if (eventCode == 123)
 		{
-			MyData mydata;
-			reader(mydata);
-			Print << U"<<< [" << playerID << U"] からの MyData(" << mydata.word << U", " << mydata.pos << U") を受信";
+			PixelSerialize pixel;
+			reader(pixel);
+			//Print << U"<<< [" << playerID << U"] からの MyData(" << pixel.word << U", " << mydata.pos << U") を受信";
+			
 		}
 	}
 };
@@ -243,6 +256,7 @@ void Main()
 	MyNetwork network{ secretAppID, U"1.0", Verbose::Yes };
 	TextEditState userNameInBox;
 	userNameInBox.text = U"user";
+	PixelData pixelData;
 	while (System::Update())
 	{
 		network.update();
@@ -269,7 +283,7 @@ void Main()
 		{
 			network.leaveRoom();
 		}
-
+		/*
 		if (SimpleGUI::Button(U"Send int32", Vec2{ 1000, 180 }, 200, network.isInRoom()))
 		{
 			const int32 n = Random(0, 10000);
@@ -323,5 +337,8 @@ void Main()
 			Print << U"eventCode: 123, MyData(" << myData.word << U", " << myData.pos << U") を送信 >>>";
 			network.sendEvent(123, Serializer<MemoryWriter>{}(myData));
 		}
+		*/
+
+
 	}
 }
