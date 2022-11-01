@@ -2,30 +2,66 @@
 # include "Multiplayer_Photon.hpp"
 # include "PHOTON_APP_ID.SECRET"
 
-struct SinglePixel {
-	Point pos;
-	Color color;
-};
-
 struct PixelData {
-	int32 size = 8;
-	int32 width = 320;
-	int32 height = 180;
-	Grid<SinglePixel> data;
+	const int32 size = 8;
+	const int32 width = 160;
+	const int32 height = 90;
+	Grid<Color> data{width,height,Palette::Black};
 };
 
 // ユーザ定義型
 struct PixelSerialize
 {
-	SinglePixel pixel;
+	Color color{Palette::White};
+	Array<Point> points;
 
 	// シリアライズに対応させるためのメンバ関数を定義する
 	template <class Archive>
 	void SIV3D_SERIALIZE(Archive& archive)
 	{
-		archive(pixel);
+		archive(color,points);
 	}
 };
+/*
+struct AllDataSerialize {
+	Grid<Color> data;
+	template <class Archive>
+	void SIV3D_SERIALIZE(Archive& archive)
+	{
+		archive(data);
+	}
+};
+*/
+class MyClass {
+private:
+	MyClass() = default;
+	~MyClass() = default;
+
+	static PixelData* instance;
+
+public:
+	MyClass(const MyClass&) = delete;
+	MyClass& operator=(const MyClass&) = delete;
+	MyClass(MyClass&&) = delete;
+	MyClass& operator=(MyClass&&) = delete;
+
+	static PixelData& get_instance() {
+		return *instance;
+	}
+
+	static void create() {
+		if (!instance) {
+			instance = new PixelData;
+		}
+	}
+
+	static void destroy() {
+		delete instance;
+		instance = nullptr;
+	}
+};
+
+PixelData* MyClass::instance = nullptr;
 
 
 
@@ -243,9 +279,23 @@ private:
 		{
 			PixelSerialize pixel;
 			reader(pixel);
-			//Print << U"<<< [" << playerID << U"] からの MyData(" << pixel.word << U", " << mydata.pos << U") を受信";
+			Print << U"<<< [" << playerID << U"] からの PixelData(" << pixel.color << U") を受信";
+			for (Point& p : pixel.points) {
+				MyClass::get_instance().data[p.y][p.x] = pixel.color;
+			}
+			//MyClass::get_instance().data
+		}
+		/*
+		if (eventCode == 124)
+		{
+			
+			AllDataSerialize allData;
+			reader(allData);
+			Print << U"<<< [" << playerID << U"] からの AllDataを受信";
+			MyClass::get_instance().data = allData.data;
 			
 		}
+		*/
 	}
 };
 
@@ -256,10 +306,37 @@ void Main()
 	MyNetwork network{ secretAppID, U"1.0", Verbose::Yes };
 	TextEditState userNameInBox;
 	userNameInBox.text = U"user";
-	PixelData pixelData;
+	MyClass::create();
+	Color drawColor = Palette::White;
+	PixelSerialize pixelSerialize;
 	while (System::Update())
 	{
+
 		network.update();
+
+		if (network.isInRoom()) {
+			if (MouseL.pressed()) {
+				Point pos = Cursor::Pos() / 8;
+				if (Rect{ 0,0,160,90 }.contains(pos)) {
+					MyClass::get_instance().data[pos.y][pos.x] = drawColor;
+					pixelSerialize.points.emplace_back(pos);
+				}
+			}
+			if (MouseL.up()) {
+				pixelSerialize.color = drawColor;
+				Print << U"eventCode: 123, MyData(" << pixelSerialize.color << U") を送信 >>>";
+				network.sendEvent(123, Serializer<MemoryWriter>{}(pixelSerialize));
+				pixelSerialize.points.clear();
+			}
+			for (auto y = 0; y < MyClass::get_instance().height; ++y) {
+				for (auto x = 0; x < MyClass::get_instance().width; ++x) {
+					Rect{ x * 8, y * 8, MyClass::get_instance().size }.draw(MyClass::get_instance().data[y][x]);
+				}
+			}
+		}
+
+
+		
 
 		SimpleGUI::TextBox(userNameInBox, Vec2{ 800,20 }, 160, 16, true);
 
@@ -283,6 +360,15 @@ void Main()
 		{
 			network.leaveRoom();
 		}
+
+		/*
+		if (SimpleGUI::Button(U"Sync Data", Vec2{ 1000, 180 }, 160, network.isInRoom()))
+		{
+			AllDataSerialize allDataSerialize;
+			//allDataSerialize.data = MyClass::get_instance().data;
+			//network.sendEvent(124, Serializer<MemoryWriter>{}(allDataSerialize));
+		}
+		*/
 		/*
 		if (SimpleGUI::Button(U"Send int32", Vec2{ 1000, 180 }, 200, network.isInRoom()))
 		{
@@ -339,8 +425,8 @@ void Main()
 		}
 		*/
 
-
 	}
+	MyClass::destroy();
 }
 
 //git add .
